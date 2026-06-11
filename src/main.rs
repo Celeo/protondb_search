@@ -43,6 +43,10 @@ fn title_case(s: &str) -> String {
         .collect()
 }
 
+fn hyperlink(url: &str, text: &str) -> String {
+    format!("\x1b]8;;{url}\x1b\\\x1b[4;34m{text}\x1b[0m\x1b]8;;\x1b\\")
+}
+
 fn format_results(games: &[(&AlgoliaEntry, ProtonResponse)]) {
     let mut table = Table::new();
     table.load_preset(UTF8_FULL).set_header(vec![
@@ -74,7 +78,22 @@ fn format_results(games: &[(&AlgoliaEntry, ProtonResponse)]) {
             steam_deck,
         ]);
     }
-    println!("{table}");
+    // Build the table with plain names so comfy-table measures widths correctly,
+    // then replace each name with a hyperlink in the rendered string.
+    let mut output = table.to_string();
+    let mut replacements: Vec<_> = games
+        .iter()
+        .map(|(algolia, _)| {
+            let url = format!("https://www.protondb.com/app/{}", algolia.object_id);
+            (algolia.name.clone(), hyperlink(&url, &algolia.name))
+        })
+        .collect();
+    // Replace longest names first to avoid a shorter name clobbering a longer one.
+    replacements.sort_by_key(|b| std::cmp::Reverse(b.0.len()));
+    for (plain, linked) in replacements {
+        output = output.replace(&plain, &linked);
+    }
+    println!("{output}");
 }
 
 fn main() {
